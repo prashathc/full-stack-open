@@ -1,46 +1,36 @@
-import React from 'react'
+import React, { useState } from 'react'
 import ReactDOM from 'react-dom'
 
-const Content = (props) => {
-  return (
-    <p>{props.part} {props.exercise} </p>
-  )
+const Button = props => {
+  return <button onClick={props.onClick}>{props.text}</button>
 }
 
-const Total = (props) => {
-  return (<p>
-    Number of exercises {props.exercises}
-  </p>)
+const Stats = props => {
+return <p>{props.text} {props.score}</p>
 }
 
 const App = () => {
-  const course = {
-    name: 'Half Stack application development',
-    parts: [
-      {
-        name: 'Fundamentals of React',
-        exercises: 10
-      },
-      {
-        name: 'Using props to pass data',
-        exercises: 7
-      },
-      {
-        name: 'State of a component',
-        exercises: 14
-      }
-    ]
-  }
-  
+  // save clicks of each button to own state
+  const [good, setGood] = useState(0)
+  const [neutral, setNeutral] = useState(0)
+  const [bad, setBad] = useState(0)
+
   return (
     <div>
-      <h1>{course.name}</h1>
-      <Content part={course.parts[0].name} exercise={course.parts[0].exercises}/>
-      <Content part={course.parts[1].name} exercise={course.parts[1].exercises}/>
-      <Content part={course.parts[2].name} exercise={course.parts[2].exercises}/>
-      <Total exercises={course.parts[0].exercises + course.parts[1].exercises + course.parts[2].exercises}/>
+      <h1>give feedback</h1>
+      <Button onClick={()=>{setGood(good + 1)}} text={"good"}></Button>
+      <Button onClick={()=>{setNeutral(neutral + 1)}} text={"neutral"}></Button>
+      <Button onClick={()=>{setBad(bad + 1)}} text={"bad"}></Button>
+
+      <h1>statistics</h1>
+
+      <Stats text={"good"} score={good}></Stats>
+      <Stats text={"neutral"} score={neutral}></Stats>
+      <Stats text={"bad"} score={bad}></Stats>
     </div>
   )
 }
 
-ReactDOM.render(<App />, document.getElementById('root'))
+ReactDOM.render(<App />, 
+  document.getElementById('root')
+)
