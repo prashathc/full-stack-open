@@ -206,3 +206,93 @@ const App = ({ notes }) => {
   )
 }
 ```
+
+- Note, that the key attribute must now be defined for the Note components, and not for the li tags like before. 
+- A whole React application can be written in a single file. 
+- Although that is, of course, not very practical. 
+- Common practice is to declare each component in their own file as an ES6-module.
+- We have been using modules the whole time. The first few lines of the file:
+
+```javascript
+
+import React from 'react'
+import ReactDOM from 'react-dom'
+```
+
+- imports two modules, enabling them to be used in the code. 
+- The react module is placed into a variable called React and react-dom to variable ReactDOM.
+- Let's move our Note component into its own module. 
+- In smaller applications, components are usually placed in a directory called components , which is in turn placed within the src directory. 
+- The convention is to name the file after the component. 
+- Now we'll create a directory called components for our application and place a file named Note.js inside. The contents of the Note.js file are as follows: 
+
+```javascript
+
+import React from 'react'
+
+const Note = ({ note }) => {
+  return (
+    <li>{note.content}</li>
+  )
+}
+
+export default Note
+```
+
+- Because this is a React-component, we must import React.
+- The last line of the module exports the declared module, the variable Note.
+- Now the file using the component, index.js, can import the module: 
+
+```javascript
+
+import React from 'react'
+import ReactDOM from 'react-dom'
+import Note from './components/Note'
+
+const App = ({ notes }) => {
+  // ...
+}
+```
+
+- App is a component as well, so let's declare it in its own module as well. 
+- Since it is the root component of the application, we'll place it in the src directory. 
+- The contents of the file are as follows: 
+
+```javascript
+
+import React from 'react'
+import Note from './components/Note'
+
+const App = ({ notes }) => {
+  return (
+    <div>
+      <h1>Notes</h1>
+      <ul>
+        {notes.map((note) => 
+          <Note key={note.id} note={note} />
+        )}
+      </ul>
+    </div>
+  )
+}
+
+export default App
+```
+
+- What's left in the index.js file is: 
+
+```javascript
+
+import React from 'react'
+import ReactDOM from 'react-dom'
+import App from './App'
+
+const notes = [
+  // ...
+]
+
+ReactDOM.render(
+  <App notes={notes} />,
+  document.getElementById('root')
+)
+```
