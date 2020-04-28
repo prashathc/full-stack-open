@@ -243,3 +243,113 @@ const App = () => {
     // ...
 }
 ```
+
+- First the body of the function defining the component is executed and the component is rendered for the first time. 
+- At this point render 0 notes is printed, meaning data hasn't been fetched from the server yet.
+
+- The follow function is executed immediate after rendering:
+
+```javascript
+
+() => {
+  console.log('effect')
+  axios
+    .get('http://localhost:3001/notes')
+    .then(response => {
+      console.log('promise fulfilled')
+      setNotes(response.data)
+    })
+}
+```
+
+- is executed immediately after rendering. 
+- The execution of the function results in effect being printed to the console, and the command axios.get initiates the fetching of data from the server as well as registers the following function as an event handler for the operation:
+
+```javascript
+
+response => {
+  console.log('promise fulfilled')
+  setNotes(response.data)
+})
+```
+
+- When data arrives from the server, the JavaScript runtime calls the function registered as the event handler, which prints promise fulfilled to the console and stores the notes received from the server into the state using the function setNotes(response.data).
+
+- As always, a call to a state-updating function triggers the re-rendering of the component. 
+- As a result, render 3 notes is printed to the console, and the notes fetched from the server are rendered to the screen.
+
+- Finally, let's take a look at the definition of the effect hook as a whole:
+
+```javascript
+
+useEffect(() => {
+  console.log('effect')
+  axios
+    .get('http://localhost:3001/notes').then(response => {
+      console.log('promise fulfilled')
+      setNotes(response.data)
+    })
+}, [])
+```
+
+- Let's rewrite the code a bit differently.
+
+```javascript
+
+const hook = () => {
+  console.log('effect')
+  axios
+    .get('http://localhost:3001/notes')
+    .then(response => {
+      console.log('promise fulfilled')
+      setNotes(response.data)
+    })
+}
+
+useEffect(hook, [])
+```
+
+- Now we can see more clearly that the function useEffect actually takes two parameters. The first is a function, the effect itself. 
+- According to the documentation:
+
+  *By default, effects run after every completed render, but you can choose to fire it only when certain values have changed.*
+
+- So by default the effect is always run after the component has been rendered. 
+- In our case, however, we only want to execute the effect along with the first render.
+
+- The second parameter of useEffect is used to specify how often the effect is run. 
+- If the second parameter is an empty array [], then the effect is only run along with the first render of the component.
+
+- There are many possible use cases for effect hook other than fetching data from the server. This suffices us for now.
+- Think back to the sequence of events we just discussed. Which parts of the code are run? In what order? How often? Understanding the order of events is critical!
+
+- Note that we could have also written the code of the effect function this way:
+
+```javascript
+
+useEffect(() => {
+  console.log('effect')
+
+  const eventHandler = response => {
+    console.log('promise fulfilled')
+    setNotes(response.data)
+  }
+
+  const promise = axios.get('http://localhost:3001/notes')
+  promise.then(eventHandler)
+}, [])
+```
+
+- A reference to an event handler function is assigned to the variable eventHandler. The promise returned by the get method of Axios is stored in the variable promise. 
+- The registration of the callback happens by giving the eventHandler variable, referring to the event-handler function, as a parameter to the then method of the promise. 
+- It isn't usually necessary to assign functions and promises to variables, and a more compact way of representing things, as seen further above, is sufficient.
+
+### The development runtime environment
+
+- The configuration for the whole of our application has steadily grown more complex. Let's review what happens and where. The following image describes the makeup of the application
+
+  1. The JavaScript code making up our React application is run in the browser. The browser gets the Javascript from the React dev server, which is the application that runs after running the command npm start. The dev-server transforms the JavaScript into a format understood by the browser. Among other things, it stitches together Javascript from different files into one file. We'll discuss the dev-server in more detail in part 7 of the course.
+  
+  2. The React application running in the browser fetches the JSON formatted data from json-server running on port 3001 on the machine. json-server gets its data from the file db.json.
+
+  3. At this point in development, all the parts of the application happen to reside on the software developer's machine, otherwise known as localhost. The situation changes when the application is deployed to the internet. We will do this in part 3.
