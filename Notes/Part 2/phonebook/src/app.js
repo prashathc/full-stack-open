@@ -28,7 +28,6 @@ const App = () => {
         </div>
         <div>
           <button onClick={handleSubmit} type="submit">add</button>
-          <div>debug: {newName}</div>
         </div>
       </form>
       <h2>Numbers</h2>
