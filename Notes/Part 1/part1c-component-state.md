@@ -38,7 +38,6 @@ const App = () => {
 - If we examine our current code closely, we'll notice that the helper function is actually defined inside of another function that defines the behavior of our component. 
 - In Java-programming, defining a method inside another method is not possible, but in JavaScript, defining functions within functions is a commonly used technique.
 
-
 ### Destructuring
 
 - Destructuring allows us to store values from objects and arrays upon assignment
