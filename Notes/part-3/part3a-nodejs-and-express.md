@@ -122,4 +122,79 @@ Error: listen EADDRINUSE :::3001
 ```
 
 -You have two options. Either shutdown the application using the port 3001 (the json-server in the last part of the material was using the port 3001), or use a different port for this application.
+
 - Let's take a closer look at the first line of the code:
+
+`const http = require('http')`
+
+- In the first row, the application imports Node's built-in web server module. This is practically what we have already been doing in our browser-side code, but with a slightly different syntax:
+
+`import http from 'http'`
+
+- These days, code that runs in the browser uses ES6 modules. Modules are defined with an export and taken into use with an import.
+-However, Node.js uses so-called CommonJS modules. 
+- The reason for this is that the Node ecosystem had a need for modules long before JavaScript supported them in the language specification. At the time of writing this material, Node does not support ES6 modules, but support for them is coming somewhere down the road.
+
+- CommonJS modules function almost exactly like ES6 modules, at least as far as our needs in this course are concerned.
+
+- The next chunk in our code looks like this:
+
+```javascript
+
+const app = http.createServer((request, response) => {
+  response.writeHead(200, { 'Content-Type': 'text/plain' })
+  response.end('Hello World')
+})
+```
+
+- The code uses the createServer method of the http module to create a new web server. 
+- An event handler is registered to the server, that is called every time an HTTP request is made to the server's address http:/localhost:3001.
+
+- The request is responded to with the status code 200, with the Content-Type header set to text/plain, and the content of the site to be returned set to Hello World.
+
+- The last rows bind the http server assigned to the app variable, to listen to HTTP requests sent to the port 3001:
+
+```javascript
+
+const PORT = 3001
+app.listen(PORT)
+console.log(`Server running on port ${PORT}`)
+```
+
+- The primary purpose of the backend server in this course is to offer raw data in the JSON format to the frontend. 
+- For this reason, let's immediately change our server to return a hardcoded list of notes in the JSON format:
+
+```javascript
+
+const http = require('http')
+
+let notes = [  
+    {    
+        id: 1,    
+        content: "HTML is easy",    
+        date: "2019-05-30T17:30:31.098Z",    
+        important: true  
+    },  
+    {    
+        id: 2,    
+        content: "Browser can execute only Javascript",    
+        date: "2019-05-30T18:39:34.091Z",    
+        important: false  
+    },
+    {    
+        id: 3,    
+        content: "GET and POST are the most important methods of HTTP protocol",    
+        date: "2019-05-30T19:20:14.298Z",    
+        important: true  
+    }
+]
+
+const app = http.createServer((request, response) => {  
+    response.writeHead(200, { 'Content-Type': 'application/json' })  response.end(JSON.stringify(notes))
+})
+
+
+const port = 3001
+app.listen(port)
+console.log(`Server running on port ${port}`)
+```
