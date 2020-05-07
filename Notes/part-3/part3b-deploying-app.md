@@ -89,3 +89,13 @@ app.listen(PORT, () => {
     *NB At least in the beginning it's good to keep an eye on the heroku logs at all times. The best way to do this is with command heroku logs -t which prints the logs to console whenever something happens on the server.*
 
 - The frontend also works with the backend on Heroku. You can check this by changing the backend's address on the frontend to be the backend's address in Heroku instead of http://localhost:3001.
+
+- The next question is, how do we deploy the frontend to the Internet? We have multiple options. Let's go through one of them next. 
+
+### Frontend Production Buiild
+
+- So far we have been running React code in development mode. In development mode the application is configured to give clear error messages, immediately render code changes to the browser, and so on. 
+
+- When the application is deployed, we must create a production build or a version of the application which is optimized for production. 
+
+ A production build of applications created with create-react-app can be created with command npm run build.
