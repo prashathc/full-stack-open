@@ -420,4 +420,434 @@ notes/10 	    PUT 	  replaces the entire identified resource w/ the request
 notes/10 	    PATCH 	replaces a part of the identified resource w/ the request data
 ```
 
-- 
+- This is how we manage to roughly define what REST refers to as a uniform interface, which means a consistent way of defining interfaces that makes it possible for systems to co-operate.
+
+- This way of interpreting REST falls under the second level of RESTful maturity in the Richardson Maturity Model. 
+  - According to the definition provided by Roy Fielding, we have not actually defined a REST API. 
+  - In fact, a large majority of the world's purported "REST" API's do not meet Fielding's original criteria outlined in his dissertation.
+
+- In some places (see e.g. Richardson, Ruby: RESTful Web Services) you will see our model for a straightforward CRUD API, being referred to as an example of resource oriented architecture instead of REST. 
+- We will avoid getting stuck arguing semantics and instead return to working on our application.
+
+### Fetching a single resource
+
+- Let's expand our application so that it offers a REST interface for operating on individual notes. First let's create a route for fetching a single resource.
+
+- The unique address we will use for an individual note is of the form notes/10, where the number at the end refers to the note's unique id number.
+
+- We can define parameters for routes in express by using the colon syntax:
+
+```javascript
+
+app.get('/api/notes/:id', (request, response) => {
+  const id = request.params.id
+  const note = notes.find(note => note.id === id)
+  response.json(note)
+})
+```
+
+- Now app.get('/api/notes/:id', ...) will handle all HTTP GET requests, that are of the form /api/notes/SOMETHING, where SOMETHING is an arbitrary string.
+
+- The id parameter in the route of a request, can be accessed through the request object:
+
+`const id = request.params.id`
+
+- The now familiar `find` method of arrays is used to find the note with an id that matches the parameter. 
+- The note is then returned to the sender of the request.
+
+- When we test our application by going to http://localhost:3001/api/notes/1 in our browser, we notice that it does not appear to work, as the browser displays an empty page. 
+- This comes as no surprise to us as software developers, and it's time to debug.
+
+- Adding console.log commands into our code is a time-proven trick:
+
+```javascript
+
+app.get('/api/notes/:id', (request, response) => {
+  const id = request.params.id
+  console.log(id)
+  const note = notes.find(note => note.id === id)
+  console.log(note)
+  response.json(note)
+})
+```
+
+- When we visit http://localhost:3001/api/notes/1 again in the browser, the console which is the terminal in this case, will display the following:
+
+- The id parameter from the route is passed to our application but the find method does not find a matching note.
+
+- To further our investigation, we also add a console log inside the comparison function passed to the find method. 
+- In order to do this, we have to get rid of the compact arrow function syntax note => note.id === id, and use the syntax with an explicit return statement:
+
+```javascript
+
+app.get('/api/notes/:id', (request, response) => {
+  const id = request.params.id
+  const note = notes.find(note => {
+    console.log(note.id, typeof note.id, id, typeof id, note.id === id)
+    return note.id === id
+  })
+  console.log(note)
+  response.json(note)
+})
+```
+
+- When we visit the URL again in the browser, each call to the comparison function prints a few different things to the console. The console output is the following:
+
+```
+1 'number' '1' 'string' false
+2 'number' '1' 'string' false
+3 'number' '1' 'string' false
+```
+
+- The cause of the bug becomes clear. The id variable contains a string '1', whereas the id's of notes are integers. 
+- In JavaScript, the "triple equals" comparison === considers all values of different types to not be equal by default, meaning that 1 is not '1'. 
+
+- Let's fix the issue by changing the id parameter from a string into a number:
+
+```javascript
+
+app.get('/api/notes/:id', (request, response) => {
+  const id = Number(request.params.id)
+  const note = notes.find(note => note.id === id)
+  response.json(note)
+})
+```
+
+- Now fetching an individual resource works.
+- However, there's another problem with our application.
+- If we search for a note with an id that does not exist, the server responds with:
+
+
+- The HTTP status code that is returned is 200, which means that the response succeeded. 
+- There is no data sent back with the response, since the value of the content-length header is 0, and the same can be verified from the browser. 
+
+- The reason for this behavior is that the note variable is set to undefined if no matching note is found. 
+- The situation needs to be handled on the server in a better way. 
+- If no note is found, the server should respond with the status code 404 not found instead of 200.
+
+- Let's make the following change to our code:
+
+```javascript
+
+app.get('/api/notes/:id', (request, response) => {
+  const id = Number(request.params.id)
+  const note = notes.find(note => note.id === id)
+  
+  if (note) {    
+    response.json(note)  
+  } else {    
+    response.status(404).end()  
+    }
+  })
+```
+
+- Since no data is attached to the response, we use the status method for setting the status, and the end method for responding to the request without sending any data.
+
+- The if-condition leverages the fact that all JavaScript objects are truthy, meaning that they evaluate to true in a comparison operation. However, undefined is falsy meaning that it will evaluate to false.
+
+- Our application works and sends the error status code if no note is found. - However, the application doesn't return anything to show to the user, like web applications normally do when we visit a page that does not exist. 
+- We do not actually need to display anything in the browser because REST API's are interfaces that are intended for programmatic use, and the error status code is all that is needed.
+
+
+
+### Deleting Resources
+
+- Next let's implement a route for deleting resources. Deletion happens by making an HTTP DELETE request to the url of the resource:
+
+```javascript
+
+app.delete('/api/notes/:id', (request, response) => {
+  const id = Number(request.params.id)
+  notes = notes.filter(note => note.id !== id)
+
+  response.status(204).end()
+})
+```
+
+- If deleting the resource is successful, meaning that the note exists and it is removed, we respond to the request with the status code 204 no content and return no data with the response.
+- There's no consensus on what status code should be returned to a DELETE request if the resource does not exist. Really, the only two options are 204 and 404. For the sake of simplicity our application will respond with 204 in both cases.
+
+### Postman
+
+- So how do we test the delete operation? HTTP GET requests are easy to make from the browser. We could write some JavaScript for testing deletion, but writing test code is not always the best solution in every situation.
+
+- Many tools exist for making the testing of backends easier. One of these is the command line program curl that was mentioned briefly in the previous part of the material.
+
+- Instead of curl, we will take a look at using Postman for testing the application.
+
+- Using Postman is quite easy in this situation. It's enough to define the url and then select the correct request type (DELETE).
+
+- The backend server appears to respond correctly. By making an HTTP GET request to http://localhost:3001/api/notes we see that the note with the id 2 is no longer in the list, which indicates that the deletion was successful. 
+- Because the notes in the application are only saved to memory, the list of notes will return to its original state when we restart the application.
+
+### The Visual Studio Code REST client
+
+- If you use Visual Studio Code, you can use the VS Code REST client plugin instead of Postman.
+- Once the plugin is installed, using it is very simple. We make a directory at the root of application named requests. We save all the REST client requests in the directory as files that end with the .rest extension.
+
+- Let's create a new get_all_notes.rest file and define the request that fetches all notes.
+
+`GET http://localhost:3001/api/notes`
+
+- By clicking the Send Request text, the REST client will execute the HTTP request and response from the server is opened in the editor.
+
+### Receiving data
+
+- Next, let's make it possible to add new notes to the server. 
+- Adding a note happens by making an HTTP POST request to the address http://localhost:3001/api/notes, and by sending all the information for the new note in the request body in the JSON format.
+
+- In order to access the data easily, we need the help of the express json-parser, that is taken to use with command app.use(express.json()).
+
+-  Let's activate the json-parser and implement an initial handler for dealing with the HTTP POST requests:
+
+```javascript
+
+const express = require('express')
+const app = express()
+
+app.use(express.json())
+
+//...
+
+app.post('/api/notes', (request, response) => {
+  const note = request.body
+  console.log(note)
+
+  response.json(note)
+})
+```
+
+- The event handler function can access the data from the body property of the request object.
+
+- Without the json-parser, the body property would be undefined. The json-parser functions so that it takes the JSON data of a request, transforms it into a JavaScript object and then attaches it to the body property of the request object before the route handler is called.
+
+- For the time being, the application does not do anything with the received data besides printing it to the console and sending it back in the response.
+
+- Before we implement the rest of the application logic, let's verify with Postman that the data is actually received by the server. In addition to defining the URL and request type in Postman, we also have to define the data sent in the body:
+
+```javascript
+{
+  "content": "Postman is a good tool for testing REST apis",
+  "important": true
+}
+```
+
+- The application prints the data that we sent in the request to the console:
+- NB Keep the terminal running the application visible at all times when you are working on the backend. 
+- Thanks to Nodemon any changes we make to the code will restart the application. If you pay attention to the console, you will immediately be able to pick up on errors that occur in the application:
+
+- Similarly, it is useful to check the console for making sure that the backend behaves like we expect it to in different situations, like when we send data with an HTTP POST request. 
+- Naturally, it's a good idea to add lots of console.log commands to the code while the application is still being developed.
+
+- A potential cause for issues is an incorrectly set Content-Type header in requests. This can happen with Postman if the type of body is not defined correctly:
+
+- The Content-Type header is set to text/plain:
+- The server appears to only receive an empty object:
+
+- The server will not be able to parse the data correctly without the correct value in the header. It won't even try to guess the format of the data, since there's a massive amount of potential Content-Types.
+- If you are using VS Code, then you should install the REST client from the previous chapter now, if you haven't already. The POST request can be sent with the REST client like this:
+
+```javascript
+
+POST http://localhost:3001/api/notes
+Content-Type: application/json
+
+{
+  "content": "VS Code REST client is pretty good",
+  "important": false
+}
+```
+
+- We created a new create_note.rest file for the request. The request is formatted according to the instructions in the documentation.
+
+- One benefit that the REST client has over Postman is that the requests are handily available at the root of the project repository, and they can be distributed to everyone in the development team. 
+  - Postman also allows users to save requests, but the situation can get quite chaotic especially when you're working on multiple unrelated projects.
+
+Sidenote:
+
+- Sometimes when you're debugging, you may want to find out what headers have been set in the HTTP request. 
+- One way of accomplishing this is through the get method of the request object, that can be used for getting the value of a single header. The request object also has the headers property, that contains all of the headers of a specific request.
+
+- Problems can occur with the VS REST client if you accidentally add an empty line between the top row and the row specifying the HTTP headers. In this situation, the REST client interprets this to mean that all headers are left empty, which leads to the backend server not knowing that the data it has received is in the JSON format.
+
+- You will be able to spot this missing Content-Type header if at some point in your code you print all of the request headers with the console.log(request.headers) command.
+
+- Let's return to the application. Once we know that the application receives data correctly, it's time to finalize the handling of the request:
+
+```javascript
+
+app.post('/api/notes', (request, response) => {
+  const maxId = notes.length > 0
+    ? Math.max(...notes.map(n => n.id)) 
+    : 0
+
+  const note = request.body
+  note.id = maxId + 1
+
+  notes = notes.concat(note)
+
+  response.json(note)
+})
+```
+
+- We need a unique id for the note. First, we find out the largest id number in the current list and assign it to the maxId variable. The id of the new note is then defined as maxId + 1. 
+- This method is in fact not recommended, but we will live with it for now as we will replace it soon enough.
+
+- The current version still has the problem that the HTTP POST request can be used to add objects with arbitrary properties. 
+- Let's improve the application by defining that the content property may not be empty. The important and date properties will be given default values. All other properties are discarded:
+
+```javascript
+
+const generateId = () => {
+  const maxId = notes.length > 0
+    ? Math.max(...notes.map(n => n.id))
+    : 0
+  return maxId + 1
+}
+
+app.post('/api/notes', (request, response) => {
+  const body = request.body
+
+  if (!body.content) {
+    return response.status(400).json({ 
+      error: 'content missing' 
+    })
+  }
+
+  const note = {
+    content: body.content,
+    important: body.important || false,
+    date: new Date(),
+    id: generateId(),
+  }
+
+  notes = notes.concat(note)
+
+  response.json(note)
+})
+```
+
+- The logic for generating the new id number for notes has been extracted into a separate generateId function.
+
+- If the received data is missing a value for the content property, the server will respond to the request with the status code 400 bad request:
+
+```javascript
+
+if (!body.content) {
+  return response.status(400).json({ 
+    error: 'content missing' 
+  })
+}
+```
+
+- Notice that calling return is crucial, because otherwise the code will execute to the very end and the malformed note gets saved to the application.
+
+- If the content property has a value, the note will be based on the received data. 
+- As mentioned previously, it is better to generate timestamps on the server than in the browser, since we can't trust that host machine running the browser has its clock set correctly. 
+- The generation of the date property is now done by the server.
+
+- If the important property is missing, we will default the value to false. The default value is currently generated in a rather odd-looking way:
+
+`important: body.important || false,`
+
+- If the data saved in the body variable has the important property, the expression will evaluate to its value. 
+- If the property does not exist, then the expression will evaluate to false which is defined on the right-hand side of the vertical lines.
+
+### generating IDs function
+
+- The function for generating IDs looks currently like this:
+
+```javascript
+
+const generateId = () => {
+  const maxId = notes.length > 0
+    ? Math.max(...notes.map(n => n.id))
+    : 0
+  return maxId + 1
+}
+```
+
+- The function body contains a row that looks a bit intriguing:
+
+`Math.max(...notes.map(n => n.id))`
+
+- What exactly is happening in that line of code? notes.map(n => n.id) creates a new array that contains all the id's of the notes. 
+- Math.max returns the maximum value of the numbers that are passed to it. 
+- However, notes.map(n => n.id) is an array so it can't directly be given as a parameter to Math.max. The array can be transformed into individual numbers by using the "three dot" spread syntax ....
+
+
+### About HTTP request types
+
+- The HTTP standard talks about two properties related to request types, safety and idempotence.
+- The HTTP GET request should be safe:
+
+*In particular, the convention has been established that the GET and HEAD methods SHOULD NOT have the significance of taking an action other than retrieval. These methods ought to be considered "safe".*
+
+- Safety means that the executing request must not cause any side effects in the server. 
+- By side-effects we mean that the state of the database must not change as a result of the request, and the response must only return data that already exists on the server.
+
+-Nothing can ever guarantee that a GET request is actually safe, this is in fact just a recommendation that is defined in the HTTP standard. 
+- By adhering to RESTful principles in our API, GET requests are in fact always used in a way that they are safe.
+
+- The HTTP standard also defines the request type HEAD, that ought to be safe. 
+- In practice HEAD should work exactly like GET but it does not return anything but the status code and response headers. The response body will not be returned when you make a HEAD request.
+
+- All HTTP requests except POST should be idempotent:
+
+*Methods can also have the property of "idempotence" in that (aside from error or expiration issues) the side-effects of N > 0 identical requests is the same as for a single request. The methods GET, HEAD, PUT and DELETE share this property*
+
+- This means that if a request has side-effects, then the result should be same regardless of how many times the request is sent.
+
+- If we make an HTTP PUT request to the url /api/notes/10 and with the request we send the data { content: "no side effects!", important: true }, the result is the same regardless of many times the request is sent.
+
+- If we make an HTTP PUT request to the url /api/notes/10 and with the request we send the data { content: "no side effects!", important: true }, the result is the same regardless of many times the request is sent.
+
+- Like safety for the GET request, idempotence is also just a recommendation in the HTTP standard and not something that can be guaranteed simply based on the request type. However, when our API adheres to RESTful principles, then GET, HEAD, PUT, and DELETE requests are used in such a way that they are idempotent.
+
+- POST is the only HTTP request type that is neither safe nor idempotent. If we send 5 different HTTP POST requests to /api/notes with a body of {content: "many same", important: true}, the resulting 5 notes on the server will all have the same content.
+
+### Middleware 
+
+- The express json-parser we took into use earlier is a so-called middleware.
+
+- Middleware are functions that can be used for handling request and response objects.
+
+- The json-parser we used earlier takes the raw data from the requests that's stored in the request object, parses it into a JavaScript object and assigns it to the request object as a new property body.
+
+- Let's implement our own middleware that prints information about every request that is sent to the server.
+
+- Middleware is a function that receives three parameters:
+
+```javascript
+const requestLogger = (request, response, next) => {
+  console.log('Method:', request.method)
+  console.log('Path:  ', request.path)
+  console.log('Body:  ', request.body)
+  console.log('---')
+  next()
+}
+```
+
+- At the end of the function body the next function that was passed as a parameter is called. The next function yields control to the next middleware.
+
+- Middleware are taken into use like this:
+
+`app.use(requestLogger)`
+
+- Middleware functions are called in the order that they're taken into use with the express server object's use method. 
+- Notice that json-parser is taken into use before the requestLogger  middleware, because otherwise request.body will not be initialized when the logger is executed!
+
+- Middleware functions have to be taken into use before routes if we want them to be executed before the route event handlers are called. 
+  - There are also situations where we want to define middleware functions after routes. 
+  - In practice, this means that we are defining middleware functions that are only called if no route handles the HTTP request.
+
+- Let's add the following middleware after our routes, that is used for catching requests made to non-existent routes. For these requests, the middleware will return an error message in the JSON format.
+
+```javascript
+
+const unknownEndpoint = (request, response) => {
+  response.status(404).send({ error: 'unknown endpoint' })
+}
+
+app.use(unknownEndpoint)
+```
