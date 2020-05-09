@@ -210,3 +210,518 @@ note.save().then(result => {
 
 - The result of the save operation is in the result parameter of the event handler. The result is not that interesting when we're storing one object to the database. You can print the object to the console if you want to take a closer look at it while implementing your application or during debugging.
 
+- Let's also save a few more notes by modifying the data in the code and by executing the program again.
+
+- NB unfortunately the Mongoose documentation uses callbacks in its examples, so it is not recommended to copy paste code directly from there. Mixing promises with old-school callbacks in the same code is not recommended. 
+
+### Fetching objects from the db
+
+- Let's comment out the code for generating new notes and replace it with the following:
+
+```javascript
+
+Note.find({}).then(result => {
+  result.forEach(note => {
+    console.log(note)
+  })
+  mongoose.connection.close()
+})
+```
+
+- When the code is executed, the program prints all the notes stored in the database:
+
+- The objects are retrieved from the database with the find method of the Note model. The parameter of the method is an object expressing search conditions. Since the parameter is an empty object{}, we get all of the notes stored in the notes collection.
+  - The search conditions adhere to the Mongo search query syntax.
+  
+- We could restrict our search to only include important notes like this:
+
+```javascript
+
+Note.find({ important: true }).then(result => {
+  // ...
+})
+```
+
+### Backend connected to a database
+
+- Now we have enough knowledge to start using Mongo in our application.
+- Let's get a quick start by copy pasting the Mongoose definitions to the index.js file:
+
+```javascript
+
+const mongoose = require('mongoose')
+
+// DO NOT SAVE YOUR PASSWORD TO GITHUB!!
+const url =
+  'mongodb+srv://fullstack:sekred@cluster0-ostce.mongodb.net/note-app?retryWrites=true'
+
+mongoose.connect(url, { useNewUrlParser: true, useUnifiedTopology: true })
+
+const noteSchema = new mongoose.Schema({
+  content: String,
+  date: Date,
+  important: Boolean,
+})
+
+const Note = mongoose.model('Note', noteSchema)
+```
+
+- Let's change the handler for fetching all notes into the following form:
+
+```javascript
+
+app.get('/api/notes', (request, response) => {
+  Note.find({}).then(notes => {
+    response.json(notes)
+  })
+})
+```
+
+- We can verify in the browser that the backend works for displaying all of the documents:
+
+- The application works almost perfectly. The frontend assumes that every object has a unique id in the id field. We also don't want to return the mongo versioning field __v to the frontend.
+
+- One way to format the objects returned by Mongoose is to modify the `toJSON` method of the objects. Modifying the method happens like this:
+
+```javascript
+
+noteSchema.set('toJSON', {
+  transform: (document, returnedObject) => {
+    returnedObject.id = returnedObject._id.toString()
+    delete returnedObject._id
+    delete returnedObject.__v
+  }
+})
+```
+
+- Even though the _id property of Mongoose objects looks like a string, it is in fact an object. The toJSON method we defined transforms it into a string just to be safe. If we didn't make this change, it would cause more harm for us in the future once we start writing tests.
+
+- Let's respond to the HTTP request with a list of objects formatted with the toJSON method:
+
+```javascript
+
+app.get('/api/notes', (request, response) => {
+  Note.find({}).then(notes => {
+    response.json(notes.map(note => note.toJSON()))
+  })
+})
+```
+
+- Now the notes variable is assigned to an array of objects returned by Mongo. When we call notes.map(note => note.toJSON()) the result is a new array, where every item from the old one is mapped to a new object with the toJSON method.
+
+### Database configuration into its own module
+
+- Before we refactor the rest of the backend to use the database, let's extract the Mongoose specific code into its own module.
+
+- Let's create a new directory for the module called models, and add a file called note.js:
+
+```javascript
+
+const mongoose = require('mongoose')
+
+const url = process.env.MONGODB_URI
+console.log('connecting to', url)
+
+mongoose.connect(url, { useNewUrlParser: true, useUnifiedTopology: true })
+  .then(result => {    console.log('connected to MongoDB')  })  .catch((error) => {    console.log('error connecting to MongoDB:', error.message)  })
+const noteSchema = new mongoose.Schema({
+  content: String,
+  date: Date,
+  important: Boolean,
+})
+
+noteSchema.set('toJSON', {
+  transform: (document, returnedObject) => {
+    returnedObject.id = returnedObject._id.toString()
+    delete returnedObject._id
+    delete returnedObject.__v
+  }
+})
+
+module.exports = mongoose.model('Note', noteSchema)
+```
+
+- Defining Node modules differs slightly from the way of defining ES6 modules in part 2.
+
+- The public interface of the module is defined by setting a value to the module.exports variable. We will set the value to be the Note model. The other things defined inside of the module, like the variables mongoose and url will not be accessible or visible to users of the module.
+
+- Importing the module happens by adding the following line to index.js:
+
+`const Note = require('./models/note')`
+
+- This way the Note variable will be assigned to the same object that the module defines.
+
+- The way that the connection is made has changed slightly:
+
+```javascript
+
+const url = process.env.MONGODB_URI
+
+console.log('connecting to', url)
+
+mongoose.connect(url, { useNewUrlParser: true, useUnifiedTopology: true })
+  .then(result => {
+    console.log('connected to MongoDB')
+  })
+  .catch((error) => {
+    console.log('error connecting to MongoDB:', error.message)
+  })
+```
+
+- It's not a good idea to hardcode the address of the database into the code, so instead the address of the database is passed to the application via the MONGODB_URI environment variable.
+
+- The method for establishing the connection is now given functions for dealing with a successful and unsuccessful connection attempt. Both functions just log a message to the console about the success status:
+
+- There are many ways to define the value of an environment variable. One way would be to define it when the application is started:
+
+`MONGODB_URI=address_here npm run watch`
+
+- A more sophisticated way is to use the dotenv library. You can install the library with the command:
+
+`npm install dotenv --save`
+
+- To use the library, we create a .env file at the root of the project. The environment variables are defined inside of the file, and it can look like this:
+
+`MONGODB_URI='mongodb+srv://fullstack:sekred@cluster0-ostce.mongodb.net/note-app?retryWrites=true'`
+
+- We also added the hardcoded port of the server into the PORT environment variable.
+
+- The .env file should be gitignored right away, since we do not want to publish any confidential information publicly online!
+
+- The environment variables defined in the dotenv file can be taken into use with the command require('dotenv').config() and you can reference them in your code just like you would reference normal environment variables, with the familiar process.env.MONGODB_URI syntax.
+
+- Let's change the index.js file in the following way:
+
+```javascript
+
+require('dotenv').config()const express = require('express')
+const app = express()
+const Note = require('./models/note')
+// ..
+
+const PORT = process.env.PORTapp.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`)
+})
+```
+
+- It's important that dotenv gets imported before the note model is imported. This ensures that the environment variables from the .env file are available globally before the code from the other modules are imported.
+
+### Using database in route handlers
+
+- Next, let's change the rest of the backend functionality to use the database.
+
+- Creating a new note is accomplished like this:
+
+```javascript
+
+app.post('/api/notes', (request, response) => {
+  const body = request.body
+
+  if (body.content === undefined) {
+    return response.status(400).json({ error: 'content missing' })
+  }
+
+  const note = new Note({
+    content: body.content,
+    important: body.important || false,
+    date: new Date(),
+  })
+
+  note.save().then(savedNote => {
+    response.json(savedNote.toJSON())
+  })
+})
+```
+
+- The note objects are created with the Note constructor function. 
+- The response for the request is sent inside of the callback function for the save operation. 
+- This ensures that the response is sent only if the operation succeeded. We will discuss error handling a little bit later.
+
+- The savedNote parameter in the callback function is the saved and newly created note. The data sent back in the response is the formatted version created with the toJSON method:
+
+`response.json(savedNote.toJSON())`
+
+- Fetching an individual note gets changed into the following:
+
+```javascript
+
+app.get('/api/notes/:id', (request, response) => {
+  Note.findById(request.params.id).then(note => {
+    response.json(note.toJSON())
+  })
+})
+```
+
+### Verifying frontend and backend integration
+
+- When the backend gets expanded, it's a good idea to test the backend first with the browser, Postman or the VS Code REST client. 
+- Next, let's try creating a new note after taking the database into use:
+
+- Only once everything has been verified to work in the backend, is it a good idea to test that the frontend works with the backend. It is highly inefficient to test things exclusively through the frontend.
+
+- It's probably a good idea to integrate the frontend and backend one functionality at a time. First, we could implement fetching all of the notes from the database and test it through the backend endpoint in the browser. After this, we could verify that the frontend works with the new backend. Once everything seems to work, we would move onto the next feature.
+
+- Once we introduce a database into the mix, it is useful to inspect the state persisted in the database, e.g. from the control panel in MongoDB Atlas. Quite often little Node helper programs like the mongo.js program we wrote earlier can be very helpful during development.
+
+### Error handling
+
+- If we try to visit the URL of a note with an id that does not actually exist e.g. http://localhost:3001/api/notes/5c41c90e84d891c15dfa3431 where 5c41c90e84d891c15dfa3431 is not an id stored in the database, then the browser will simply get "stuck" since the server never responds to the request.
+
+- We can see the following error message appear in the logs for the backend:
+
+- The request has failed and the associated Promise has been rejected. Since we don't handle the rejection of the promise, the request never gets a response. In part 2, we already acquainted ourselves with handling errors in promises.
+
+- Let's add a simple error handler:
+
+```javascript
+
+app.get('/api/notes/:id', (request, response) => {
+  Note.findById(request.params.id)
+    .then(note => {
+      response.json(note.toJSON())
+    })
+    .catch(error => {
+      console.log(error)
+      response.status(404).end()
+    })
+})
+```
+
+- Every request that leads to an error will be responded to with the HTTP status code 404 not found. The console displays more detailed information about the error.
+
+- There's actually two different types of error situations. In one of those situations, we are trying to fetch a note with a wrong kind of id, meaning an id that doesn't match the mongo identifier format.
+
+- If we make the following request, we will get the error message shown below:
+
+- The other error situation happens when the id is in the correct format, but no note is found in the database for that id.
+
+```javascript
+
+Method: GET
+Path:   /api/notes/5a3b7c3c31d61cbd9f8a0343
+Body:   {}
+---
+TypeError: Cannot read property 'toJSON' of null
+    at Note.findById.then.note (/Users/mluukkai/opetus/_2019fullstack-koodit/osa3/notes-backend/index.js:27:24)
+    at process._tickCallback (internal/process/next_tick.js:178:7)
+```
+
+- We should distinguish between these two different types of error situations. The latter is in fact an error caused by our own code.
+
+- Let's change the code in the following way:
+
+```javascript
+
+app.get('/api/notes/:id', (request, response) => {
+  Note.findById(request.params.id)
+    .then(note => {
+      if (note) {        
+        response.json(note.toJSON())      
+      } else {        
+        response.status(404).end()       
+      }    
+    })
+    .catch(error => {
+      console.log(error)
+      response.status(400).send({ error: 'malformatted id' })    
+    })
+})
+```
+
+- If no matching object is found in the database, the value of note will be undefined and the else block is executed. This results in a response with the status code 404 not found.
+
+- If the format of the id is incorrect, then we will end up in the error handler defined in the catch block. The appropriate status code for the situation is 400 bad request, because the situation fits the description perfectly:
+  *The request could not be understood by the server due to malformed syntax. The client SHOULD NOT repeat the request without modifications.*
+
+- We have also added some data to the response to shed some light on the cause of the error.
+
+- When dealing with Promises, it's almost always a good idea to add error and exception handling, because otherwise you will find yourself dealing with strange bugs.
+
+- It's never a bad idea to print the object that caused the exception to the console in the error handler:
+
+```javascript
+
+.catch(error => {
+  console.log(error)
+  response.status(400).send({ error: 'malformatted id' })
+})
+```
+
+- The reason the error handler gets called might be something completely different than what you had anticipated. If you log the error to the console, you may save yourself from long and frustrating debugging sessions.
+
+- Every time you're working on a project with a backend, it is critical to keep an eye on the console output of the backend. If you are working on a small screen, it is enough to just see a tiny slice of the output in the background. Any error messages will catch your attention even when the console is far back in the background:
+
+### Moving error handling into middleware
+
+- We have written the code for the error handler among the rest of our code. This can be a reasonable solution at times, but there are cases where it is better to implement all error handling in a single place. This can be particularly useful if we later on want to report data related to errors to an external error tracking system like Sentry.
+
+- Let's change the handler for the /api/notes/:id route, so that it passes the error forward with the next function. The next function is passed to the handler as the third parameter:
+
+```javascript
+
+app.get('/api/notes/:id', (request, response, next) => {  Note.findById(request.params.id)
+    .then(note => {
+      if (note) {
+        response.json(note.toJSON())
+      } else {
+        response.status(404).end()
+      }
+    })
+    .catch(error => next(error))})
+```
+
+- The error that is passed forwards is given to the `next` function as a parameter. If `next` was called without a parameter, then the execution would simply move onto the `next` route or middleware. If the `next` function is called with a parameter, then the execution will continue to the error handler middleware.
+
+- Express error handlers are middleware that are defined with a function that accepts four parameters. Our error handler looks like this:
+
+```javascript
+
+const errorHandler = (error, request, response, next) => {
+  console.error(error.message)
+
+  if (error.name === 'CastError') {
+    return response.status(400).send({ error: 'malformatted id' })
+  } 
+
+  next(error)
+}
+
+app.use(errorHandler)
+```
+
+- The error handler checks if the error is a CastError exception, in which case we know that the error was caused by an invalid object id for Mongo. 
+
+- In this situation the error handler will send a response to the browser with the response object passed as a parameter. In all other error situations, the middleware passes the error forward to the default Express error handler. 
+
+### The order of middleware loading
+
+- The execution order of middleware is the same as the order that they are loaded into express with the app.use function. For this reason it is important to be careful when defining middleware.
+
+- The correct order is the following:
+
+```javascript
+
+app.use(express.static('build'))
+app.use(express.json())
+app.use(logger)
+
+app.post('/api/notes', (request, response) => {
+  const body = request.body
+  // ...
+})
+
+const unknownEndpoint = (request, response) => {
+  response.status(404).send({ error: 'unknown endpoint' })
+}
+
+// handler of requests with unknown endpoint
+app.use(unknownEndpoint)
+
+const errorHandler = (error, request, response, next) => {
+  // ...
+}
+
+// handler of requests with result to errors
+app.use(errorHandler)
+```
+
+- The json-parser middleware should be among the very first middleware loaded into Express. If the order was the following:
+
+```javascript
+
+app.use(logger) // request.body is empty!
+
+app.post('/api/notes', (request, response) => {
+  // request.body is empty!
+  const body = request.body
+  // ...
+})
+
+app.use(express.json())
+```
+
+- Then the JSON data sent with the HTTP requests would not be available for the logger middleware or the POST route handler, since the request.body would be an empty object.
+
+- It's also important that the middleware for handling unsupported routes is next to the last middleware that is loaded into Express, just before the error handler.
+
+- For example, the following loading order would cause an issue:
+
+```javascript
+
+const unknownEndpoint = (request, response) => {
+  response.status(404).send({ error: 'unknown endpoint' })
+}
+
+// handler of requests with unknown endpoint
+app.use(unknownEndpoint)
+
+app.get('/api/notes', (request, response) => {
+  // ...
+})
+```
+
+- Now the handling of unknown endpoints is ordered before the HTTP request handler. Since the unknown endpoint handler responds to all requests with 404 unknown endpoint, no routes or middleware will be called after the response has been sent by unknown endpoint middleware. The only exception to this is the error handler which needs to come at the very end, after the unknown endpoints handler.
+
+### Other operations
+
+- Let's add some missing functionality to our application, including deleting and updating an individual note.
+
+- The easiest way to delete a note from the database is with the findByIdAndRemove method:
+
+```javascript
+
+app.delete('/api/notes/:id', (request, response, next) => {
+  Note.findByIdAndRemove(request.params.id)
+    .then(result => {
+      response.status(204).end()
+    })
+    .catch(error => next(error))
+})
+```
+
+- In both of the "successful" cases of deleting a resource, the backend responds with the status code 204 no content. 
+- The two different cases are deleting a note that exists, and deleting a note that does not exist in the database. 
+
+- The result callback parameter could be used for checking if a resource actually was deleted, and we could use that information for returning different status codes for the two cases if we deemed it necessary. Any exception that occurs is passed onto the error handler.
+
+- The toggling of the importance of a note can be easily accomplished with the findByIdAndUpdate method.
+
+```javascript
+
+app.put('/api/notes/:id', (request, response, next) => {
+  const body = request.body
+
+  const note = {
+    content: body.content,
+    important: body.important,
+  }
+
+  Note.findByIdAndUpdate(request.params.id, note, { new: true })
+    .then(updatedNote => {
+      response.json(updatedNote.toJSON())
+    })
+    .catch(error => next(error))
+})
+```
+
+- In the code above, we also allow the content of the note to be edited. However, we will not support changing the creation date for obvious reasons.
+
+- Notice that the findByIdAndUpdate method receives a regular JavaScript object as its parameter, and not a new note object created with the Note constructor function.
+
+- There is one important detail regarding the use of the findByIdAndUpdate method. By default, the updatedNote parameter of the event handler receives the original document without the modifications. We added the optional { new: true } parameter, which will cause our event handler to be called with the new modified document instead of the original.
+
+- After testing the backend directly with Postman and the VS Code REST client, we can verify that it seems to work. The frontend also appears to work with the backend using the database. 
+
+- When we toggle the importance of a note, we see the following worrisome error message in the console:
+
+- Googling the error message will lead to instructions for fixing the problem. Following the suggestion in the Mongoose documentation, we add the following line to the note.js file:
+
+```javascript
+
+const mongoose = require('mongoose')
+
+mongoose.set('useFindAndModify', false)
+// ...
+  
+module.exports = mongoose.model('Note', noteSchema) 
+```
