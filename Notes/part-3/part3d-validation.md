@@ -82,3 +82,16 @@ const errorHandler = (error, request, response, next) => {
 ### Promise Chaining
 
 - Many of the route handlers changed the response data into the right format by calling the toJSON method. When we created a new note, the toJSON method was called for the object passed as a parameter to then:
+
+```javascript
+
+app.post('/api/notes', (request, response, next) => {
+  // ...
+
+  note.save()
+    .then(savedNote => {
+      response.json(savedNote.toJSON())
+    })
+    .catch(error => next(error)) 
+})
+```
