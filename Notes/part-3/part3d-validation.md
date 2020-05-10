@@ -309,4 +309,33 @@ module.exports = {
 
 - This includes a rule that warns about console.log commands. 
 - Disabling a rule can be accomplished by defining its "value" as 0 in the configuration file. 
-- Let's do this for the no-console rule in the meantime.
+- Let's do this for the `no-console` rule in the meantime.
+
+```javascript
+
+{
+  // ...
+  'rules': {
+    // ...
+    'eqeqeq': 'error',
+    'no-trailing-spaces': 'error',
+    'object-curly-spacing': [
+        'error', 'always'
+    ],
+    'arrow-spacing': [
+        'error', { 'before': true, 'after': true }
+    ],
+    'no-console': 0  },
+}
+```
+
+- NB when you make changes to the .eslintrc.js file, it is recommended to run the linter from the command line. 
+- This will verify that the configuration file is correctly formatted:
+
+- If there is something wrong in your configuration file, the lint plugin can behave quite erratically.
+
+- Many companies define coding standards that are enforced throughout the organization through the ESlint configuration file. 
+- It is not recommended to keep reinventing the wheel over and over again, and it can be a good idea to adopt a ready-made configuration from someone else's project into yours. 
+  - Recently many projects have adopted the Airbnb Javascript style guide by taking Airbnb's ESlint configuration into use.
+
+
