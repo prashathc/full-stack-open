@@ -95,3 +95,218 @@ app.post('/api/notes', (request, response, next) => {
     .catch(error => next(error)) 
 })
 ```
+
+- We can accomplish the same functionality in a much cleaner way with promise chaining:
+
+```javascript
+
+app.post('/api/notes', (request, response, next) => {
+  // ...
+
+  note
+    .save()
+    .then(savedNote => {      
+      return savedNote.toJSON()    
+      })    
+      .then(savedAndFormattedNote => {      
+        response.json(savedAndFormattedNote)    
+      })     
+      .catch(error => next(error)) 
+})
+```
+
+- In the first `then` we receive `savedNote` object returned by Mongoose and format it. 
+- The result of the operation is returned. 
+- Then as we discussed earlier, the then method of a promise also returns a promise and we can access the formatted note by registering a new callback function with the then method.
+
+
+- We can clean up our code even more by using the more compact syntax for arrow functions:
+
+```javascript
+
+app.post('/api/notes', (request, response, next) => {
+  // ...
+
+  note
+    .save()
+    .then(savedNote => savedNote.toJSON())    
+    .then(savedAndFormattedNote => {
+      response.json(savedAndFormattedNote)
+    }) 
+    .catch(error => next(error)) 
+})
+```
+
+- In this example, Promise chaining does not provide much of a benefit. 
+- The situation would change if there were many asynchronous operations that had to be done in sequence. 
+- We will not dive further into the topic. 
+- In the next part of the course we will learn about the async/await syntax in JavaScript, that will make writing subsequent asynchronous operations a lot easier.
+
+### Deploying the database backend to production
+
+- The application should work almost as-is in Heroku. We do have to generate a new production build of the frontend due to the changes that we have made to our frontend. 
+
+- The environment variables defined in dotenv will only be used when the backend is not in production mode, i.e. Heroku.
+
+- We defined the environment variables for development in file .env, but the environment variable that defines the database URL in production should be set to Heroku with the heroku config:set command.
+
+`$ heroku config:set MONGODB_URI=mongodb+srv://fullstack:secretpasswordhere@cluster0-ostce.mongodb.net/note-app?retryWrites=true`
+
+
+- NB: if the command causes an error, give the value of MONGODB_URI in apostrophes:
+
+`$ heroku config:set MONGODB_URI='mongodb+srv://fullstack:secretpasswordhere@cluster0-ostce.mongodb.net/note-app?retryWrites=true'`
+
+- The application should now work. Sometimes things don't go according to plan. If there are problems, heroku logs will be there to help. My own application did not work after making the changes. The logs showed the following:
+
+- For some reason the URL of the database was undefined. The heroku config command revealed that I had accidentally defined the URL to the MONGO_URL environment variable, when the code expected it to be in MONGODB_URI.
+
+### Lint
+
+- Before we move onto the next part, we will take a look at an important tool called lint. Wikipedia says the following about lint:
+  *Generically, lint or a linter is any tool that detects and flags errors in programming languages, including stylistic errors. The term lint-like behavior is sometimes applied to the process of flagging suspicious language usage. Lint-like tools generally perform static analysis of source code.*
+
+- In compiled statically typed languages like Java, IDEs like NetBeans can point out errors in the code, even ones that are more than just compile errors. Additional tools for performing static analysis like checkstyle, can be used for expanding the capabilities of the IDE to also point out problems related to style, like indentation.
+
+- In the JavaScript universe, the current leading tool for static analysis aka. "linting" is ESlint.
+
+- Let's install ESlint as a development dependency to the backend project with the command:
+
+`npm install eslint --save-dev`
+
+- After this we can initialize a default ESlint configuration with the command:
+
+`node_modules/.bin/eslint --init`
+
+- We will answer all of the questions:
+- The configuration will be saved in the `.eslintrc.js` file:
+
+```javascript
+
+module.exports = {
+    'env': {
+        'commonjs': true,
+        'es6': true,
+        'node': true
+    },
+    'extends': 'eslint:recommended',
+    'globals': {
+        'Atomics': 'readonly',
+        'SharedArrayBuffer': 'readonly'
+    },
+    'parserOptions': {
+        'ecmaVersion': 2018
+    },
+    'rules': {
+        'indent': [
+            'error',
+            4
+        ],
+        'linebreak-style': [
+            'error',
+            'unix'
+        ],
+        'quotes': [
+            'error',
+            'single'
+        ],
+        'semi': [
+            'error',
+            'never'
+        ]
+    }
+}
+```
+
+- Let's immediately change the rule concerning indentation, so that the indentation level is two spaces.
+
+```javascript
+
+"indent": [
+    "error",
+    2
+],
+```
+
+- Inspecting and validating a file like index.js can be done with the following command:
+
+`node_modules/.bin/eslint index.js`
+
+- It is recommended to create a separate `npm script` for linting:
+
+```javascript
+
+{
+  // ...
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    // ...
+    "lint": "eslint ."
+  },
+  // ...
+}
+```
+
+- Now the `npm run lint` command will check every file in the project.
+
+- Also the files in the build directory get checked when the command is run. We do not want this to happen, and we can accomplish this by creating an `.eslintignore` file in the project's root with the following contents:
+
+`build`
+
+- This causes the entire `build` directory to not be checked by ESlint.
+
+- Lint has quite a lot to say about our code:
+
+- Let's not fix these issues just yet.
+- A better alternative to executing the linter from the command line is to configure a eslint-plugin to the editor, that runs the linter continuously. 
+- By using the plugin you will see errors in your code immediately. You can find more information about the Visual Studio ESLint plugin here.
+
+- The VS Code ESlint plugin will underline style violations with a red line:
+
+- This makes errors easy to spot and fix right away.
+
+- ESlint has a vast array of rules that are easy to take into use by editing the `.eslintrc.js` file.
+
+- Let's add the eqeqeq rule that warns us, if equality is checked with anything but the triple equals operator. The rule is added under the rules field in the configuration file.
+
+```javascript
+
+{
+  // ...
+  'rules': {
+    // ...
+   'eqeqeq': 'error',
+  },
+}
+```
+
+- While we're at it, let's make a few other changes to the rules.
+
+- Let's prevent unnecessary trailing spaces at the ends of lines, let's require that there is always a space before and after curly braces, and let's also demand a consistent use of whitespaces in the function parameters of arrow functions.
+
+```javascript
+
+{
+  // ...
+  'rules': {
+    // ...
+    'eqeqeq': 'error',
+    'no-trailing-spaces': 'error',
+    'object-curly-spacing': [
+        'error', 'always'
+    ],
+    'arrow-spacing': [
+        'error', { 'before': true, 'after': true }
+    ]
+  },
+}
+```
+
+- Our default configuration takes a bunch of predetermined rules into use from eslint:recommended:
+
+`'extends': 'eslint:recommended',`
+
+- This includes a rule that warns about console.log commands. 
+- Disabling a rule can be accomplished by defining its "value" as 0 in the configuration file. 
+- Let's do this for the no-console rule in the meantime.
